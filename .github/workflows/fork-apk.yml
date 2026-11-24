@@ -1,0 +1,6 @@
+{"name": "Fork APK", "on": {"push": {"branches": ["fix/61-telephony-channel"]}}, "permissions": {"contents": "write"}, "jobs": {"apk": {"runs-on": "ubuntu-latest", "steps": [{"uses": "actions/checkout@v4"},
+{"uses": "actions/setup-java@v4", "with": {"distribution": "zulu", "java-version": "17"}},
+{"uses": "subosito/flutter-action@v2", "with": {"channel": "stable", "flutter-version": "3.47.2", "cache": true}},
+{"run": "flutter pub get"},
+{"run": "flutter build apk --release --flavor community --target lib/main.dart --dart-define=GM_PSK_URL=https://key.9esim.com/psk --dart-define=APP_VARIANT=community"},
+{"name": "Publish pre-release", "env": {"GH_TOKEN": "${{ github.token }}"}, "run": "gh release create \"fork-61-${{ github.run_number }}\" build/app/outputs/flutter-apk/app-community-release.apk --prerelease --target \"${{ github.sha }}\" --title \"Fork build ${{ github.run_number }} (#61)\" --notes \"NekokoLPA2 fork build for issue 61: TelephonyManager channel fallback.\""}]}}}
