@@ -38,6 +38,7 @@ class OmapiPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var eventChannel: EventChannel? = null
     private var eventSink: EventChannel.EventSink? = null
     private var context: Context? = null
+            private val telephonyFallback by lazy { TelephonyChannelFallback(context!!) }
     private var seService: SEService? = null
     private var serviceReadiness: OmapiServiceReadiness? = null
 
@@ -977,6 +978,7 @@ class OmapiPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
 
         // If we get here, no AID worked. A refusal is final: a new session gets the same answer.
+                for (t in targets) { val sel = telephonyFallback.open(readerName, t); if (sel != null) return runOnUiThread { result.success(mapOf<String, Any>("success" to true, "aid" to t, "selectResponse" to sel)) } }
         if (failures.permissionDenied) {
             return runOnUiThread {
                 result.error(
@@ -1047,7 +1049,8 @@ class OmapiPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                             result.error("INVALID_ARGUMENT", "aid required", null)
                         }
 
-        Log.i(TAG, "Closing tracked channel for AID request: $aidHex")
+                if (telephonyFallback.has(readerName, aidHex)) { telephonyFallback.close(readerName, aidHex); return runOnUiThread { result.success(true) } }
+                        Log.i(TAG, "Closing tracked channel for AID request: $aidHex")
         val cleanup =
                 cleanupCoordinator.cleanupChannel(
                         readerName,
@@ -1093,7 +1096,8 @@ class OmapiPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                             result.error("INVALID_ARGUMENT", "apdu required", null)
                         }
 
-        var attempt = 0
+                if (telephonyFallback.has(readerName, aidHex)) { val out = telephonyFallback.transmit(readerName, aidHex, hexStringToByteArray(apduHex))?.lowercase(); return runOnUiThread { if (out != null) result.success(out) else result.error("CHANNEL_FAILED", "TelephonyManager transmit failed", null) } }
+                        var attempt = 0
         var currentDelay = 1000L
         val maxAttempts = 8
 
@@ -1250,6 +1254,7 @@ class OmapiPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
     private fun cleanupReaderSessions(readerName: String): OmapiCleanupResult {
+                    telephonyFallback.closeAll(normalizeReaderName(readerName))
         // Sessions and channels are keyed by the normalized name.
         val normalizedReaderName = normalizeReaderName(readerName)
         val result = cleanupCoordinator.cleanupReader(normalizedReaderName)
